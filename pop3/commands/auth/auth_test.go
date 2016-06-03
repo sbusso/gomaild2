@@ -1,13 +1,26 @@
 package auth
 
 import (
+	config "github.com/spf13/viper"
 	. "github.com/trapped/gomaild2/pop3/structs"
 	"net"
 	"strings"
 	"testing"
 )
 
+func initconfig() {
+	//read config
+	config.AddConfigPath("../../../")
+	err := config.ReadInConfig()
+	if err != nil {
+		panic(err)
+	}
+	config.Set("config.loaded", true)
+}
+
 func TestProcess(t *testing.T) {
+	initconfig()
+
 	authedClient := &Client{
 		Data: make(map[string]interface{}),
 	}
@@ -45,9 +58,21 @@ func TestProcess(t *testing.T) {
 			Reply{Result: OK, Message: "\r\n" + strings.Join([]string{"PLAIN", "LOGIN", "CRAM-MD5"}, "\r\n") + "\r\n."},
 		},
 		{
-			&Client{State: Authorization},
+			&Client{State: Authorization,
+				Data: make(map[string]interface{})},
 			Command{Verb: "AUTH", Args: "PLAIN"},
 			Reply{Result: OK, Message: "authentication successful"},
+		},
+		{
+			&Client{State: Authorization,
+				Data: make(map[string]interface{})},
+			Command{Verb: "AUTH", Args: "PLAIN"},
+			Reply{Result: ERR, Message: "authentication failed"},
+		},
+		{
+			&Client{State: Authorization},
+			Command{Verb: "AUTH", Args: "XXX YYY ZZZ"},
+			Reply{Result: ERR, Message: "unrecognized authentication method"},
 		},
 	}
 
@@ -56,7 +81,9 @@ func TestProcess(t *testing.T) {
 		[]string{},
 		[]string{},
 		[]string{},
-		[]string{"eHh4eABleGFtcGxlQHRlc3QuY29tAHRlc3RwYXNzd29yZA==", "\r\n"},
+		[]string{"eHh4eABleGFtcGxlQHRlc3QuY29tAHRlc3RwYXNzd29yZA==\r\n"}, // PLAIN (valid)
+		[]string{"eHh4eABlZZZZZZq13wd23uY29tAHRlc3RwYXNzd29yZA==\r\n"},   // PLAIN (invalid)
+		[]string{},
 	}
 
 	l, err := net.Listen("tcp", ":1349")
@@ -67,8 +94,8 @@ func TestProcess(t *testing.T) {
 
 	for i, testcase := range cases {
 
-		switch i {
-		case 4:
+		switch len(cmds[i]) != 0 {
+		case true:
 			go func(n int) {
 				conn, err := net.Dial("tcp", ":1349")
 				if err != nil {
@@ -81,7 +108,6 @@ func TestProcess(t *testing.T) {
 				}
 
 				q := strings.Join(cmds[n], "")
-
 				conn.Write([]byte(q))
 
 			}(i)

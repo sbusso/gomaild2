@@ -21,7 +21,7 @@ var (
 )
 
 func init() {
-	Extensions = append(Extensions, "SASL CRAM-MD5")
+	Extensions = append(Extensions, "SASL PLAIN CRAM-MD5")
 }
 
 func decodeCreds(auth string) (string, string, string) {
